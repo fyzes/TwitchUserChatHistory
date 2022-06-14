@@ -36,6 +36,7 @@ class TwitchUserChatHistory(object):
             self.twitch_login = TwitchLogin()
             if self.twitch_login.login():
                 print('Cannot login to twitch')
+                input('Press <enter> to exit')
                 return 1
 
             self.twitch_messages_log = TwitchMessagesLog(self.twitch_login.token, self.twitch_login.client_id)
