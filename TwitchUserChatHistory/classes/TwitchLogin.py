@@ -3,7 +3,7 @@
 # The MIT License (MIT)
 
 import os
-from getpass import getpass
+from pwinput import pwinput
 import requests
 import pickle
 import browser_cookie3
@@ -37,7 +37,7 @@ class TwitchLogin(object):
             print('Found cookies, no login needed')
             return 0
 
-        self.password = getpass('Enter your password: ')
+        self.password = pwinput('Enter your password: ', '*')
 
         post_data = {
             'username': self.username,
@@ -81,14 +81,14 @@ class TwitchLogin(object):
                 elif error_code in [3001, 3002, 3003]:
                     print('Invalid username or password')
 
-                    self.password = getpass('Enter your password: ')
+                    self.password = pwinput('Enter your password: ', '*')
                     post_data['password'] = self.password
                     continue
 
                 elif error_code == 2005:
                     print('Invalid password length')
 
-                    self.password = getpass('Enter your password: ')
+                    self.password = pwinput('Enter your password: ', '*')
                     post_data['password'] = self.password
                     continue
 
