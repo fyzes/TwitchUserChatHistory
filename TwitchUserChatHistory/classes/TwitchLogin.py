@@ -6,6 +6,7 @@ import os
 from getpass import getpass
 import requests
 import pickle
+import browser_cookie3
 
 from TwitchUserChatHistory.constants import GQLOperations, CLIENT_ID, USER_AGENT
 
@@ -31,9 +32,9 @@ class TwitchLogin(object):
 
         self.set_cookies_path()
         if not self.load_cookies():
+            self.set_token(self.cookies['auth-token'])
+            self.user_id = self.cookies['persistent']
             print('Found cookies, no login needed')
-            self.set_token(self.get_cookie_value('auth-token'))
-            self.user_id = self.get_cookie_value('persistent')
             return 0
 
         self.password = getpass('Enter your password: ')
@@ -77,11 +78,9 @@ class TwitchLogin(object):
                     post_data['twitchguard_code'] = token_2fa
                     continue
 
-                # invalid username or password
                 elif error_code in [3001, 3002, 3003]:
                     print('Invalid username or password')
 
-                    self.username = input(f'Enter your username: ')
                     self.password = getpass('Enter your password: ')
                     post_data['password'] = self.password
                     continue
@@ -95,6 +94,17 @@ class TwitchLogin(object):
 
                 elif error_code == 1000:
                     print('Console login unavailable. Captcha solving required')
+                    q_login_browser = input('Do you want to login via browser (y / n)? ')
+                    if q_login_browser in ['y', 'Y']:
+                        cookies_dict = self.get_cookies_browser()
+                        if cookies_dict is None:
+                            return 3
+                        self.set_token(cookies_dict['auth-token'])
+                        if self.set_user_id():
+                            return 5
+                        self.save_cookies(cookies_dict)
+                        print('Successfully logged in, cookies saved')
+                        return 0
                     return 3
 
                 else:
@@ -102,11 +112,11 @@ class TwitchLogin(object):
                     return 2
 
             if 'access_token' in response:
-                # print(response['access_token'])
                 self.set_token(response['access_token'])
                 if self.set_user_id():
                     return 5
-                self.save_cookies()
+                cookies_dict = self.session.cookies.get_dict()
+                self.save_cookies(cookies_dict)
                 print('Successfully logged in, cookies saved')
                 return 0
 
@@ -135,21 +145,45 @@ class TwitchLogin(object):
             return 0
         return 2
 
+    def get_cookies_browser(self):
+        browser = input('What browser do you use (1 - Chrome / 2 - Chromium / 3 - Firefox / 4 - Opera / 5 - Other)? ')
+        if browser not in ('1', '2', '3', '4'):
+            print('Browser not supported')
+            return None
+
+        input('Login inside browser (NOT incognito mode) and press <enter>')
+        twitch_domain = '.twitch.tv'
+        try:
+            if browser == '1':
+                cookie_jar = browser_cookie3.chrome(domain_name=twitch_domain)
+            elif browser == '2':
+                cookie_jar = browser_cookie3.chromium(domain_name=twitch_domain)
+            elif browser == '3':
+                cookie_jar = browser_cookie3.firefox(domain_name=twitch_domain)
+            elif browser == '4':
+                cookie_jar = browser_cookie3.opera(domain_name=twitch_domain)
+        except browser_cookie3.BrowserCookieError:
+            print('Cannot find cookies')
+            return None
+
+        cookies_dict = requests.utils.dict_from_cookiejar(cookie_jar)
+        if 'auth-token' not in cookies_dict:
+            print('Cannot find required data in cookies')
+            return None
+        return cookies_dict
+
     def set_cookies_path(self):
         cookies_dir = os.path.join(os.getcwd(), 'cookies')
         if not os.path.exists(cookies_dir):
             os.mkdir(cookies_dir)
         self.cookies_path = os.path.join(cookies_dir, f'cookies_{self.username}.pkl')
 
-    def save_cookies(self):
-        cookies_dict = self.session.cookies.get_dict()
-        cookies_dict['auth-token'] = self.token
+    def save_cookies(self, cookies_dict):
+        if 'auth-token' not in cookies_dict:
+            cookies_dict['auth-token'] = self.token
         if 'persistent' not in cookies_dict:  # saving user id cookies
             cookies_dict['persistent'] = self.user_id
-
-        self.cookies = []
-        for cookie_name, cookie_value in cookies_dict.items():
-            self.cookies.append({'name': cookie_name, 'value': cookie_value})
+        self.cookies = cookies_dict.copy()
         pickle.dump(self.cookies, open(self.cookies_path, 'wb'))
 
     def load_cookies(self):
@@ -157,10 +191,3 @@ class TwitchLogin(object):
             self.cookies = pickle.load(open(self.cookies_path, 'rb'))
             return 0
         return 1
-
-    def get_cookie_value(self, key):
-        for cookie in self.cookies:
-            if cookie["name"] == key:
-                if cookie["value"] is not None:
-                    return cookie["value"]
-        return None

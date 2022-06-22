@@ -1,8 +1,6 @@
 import os
 import traceback
-import time
 from datetime import datetime
-from getpass import getpass
 
 from TwitchUserChatHistory.classes.TwitchLogin import TwitchLogin
 from TwitchUserChatHistory.classes.TwitchMessagesLog import TwitchMessagesLog
@@ -36,16 +34,17 @@ class TwitchUserChatHistory(object):
             self.twitch_login = TwitchLogin()
             if self.twitch_login.login():
                 print('Cannot login to twitch')
+                print('TwitchUserChatHistory ended')
                 input('Press <enter> to exit')
                 return 1
 
             self.twitch_messages_log = TwitchMessagesLog(self.twitch_login.token, self.twitch_login.client_id)
-            key_pressed = None
-            while key_pressed != '':
+            q_load_another = 'y'
+            while q_load_another in ['y', 'Y']:
                 channel_name = input('Enter channel name: ')
                 user_name = input('Enter user name: ')
                 self.twitch_messages_log.get_history(channel_name, user_name)
-                key_pressed = getpass('Press <any key + enter> to load another or <enter> to exit')
+                q_load_another = input('Do you want to load another (y / n)? ')
 
         except Exception:
             logs_dir = os.path.join(os.getcwd(), 'logs')
@@ -54,8 +53,11 @@ class TwitchUserChatHistory(object):
             logs_path = os.path.join(logs_dir, f'errors_{datetime.now().strftime("%y%m%d_%H%M%S")}.log')
             with open(logs_path, 'w', encoding='utf-8') as logs_file:
                 logs_file.write(traceback.format_exc())
-            raise
+            print('Error occurred. Check logs')
+            print('TwitchUserChatHistory ended')
+            input('Press <enter> to exit')
+            return 2
 
         print('TwitchUserChatHistory ended')
-        time.sleep(1)
+        input('Press <enter> to exit')
         return 0
